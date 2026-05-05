@@ -21,12 +21,21 @@ public class MainWindow {
     private ComboBox<String> bufferSizeCombo;
     private RadioButton doubleBufferRadio;
     private RadioButton ringBufferRadio;
+    private RadioButton filteredRingBufferRadio;
     private ToggleGroup modeGroup;
     private Button loadButton;
     private Button playButton;
     private Button stopButton;
     private Label statusLabel;
     private Label fileLabel;
+    private Label filterStatusLabel;
+
+    // Filter controls
+    private ComboBox<String> filterTypeCombo;
+    private ComboBox<String> filterOrderCombo;
+    private TextField cutoffLowField;
+    private TextField cutoffHighField;
+    private CheckBox filterEnabledCheck;
 
     // Data
     private File currentFile;
@@ -36,6 +45,7 @@ public class MainWindow {
     // Players
     private DoubleBufferPlayer doubleBufferPlayer;
     private RingBufferPlayer ringBufferPlayer;
+    private FilteredRingBufferPlayer filteredRingBufferPlayer;
 
     private volatile boolean isPlaying = false;
     private Thread playbackMonitor;
@@ -51,7 +61,7 @@ public class MainWindow {
 
         initPlayers();
 
-        return new Scene(root, 800, 400);
+        return new Scene(root, 900, 550);
     }
 
     private VBox createControlPanel() {
@@ -74,7 +84,7 @@ public class MainWindow {
         fileLabel = new Label("Не выбран");
         fileLabel.setStyle("-fx-border-color: #999; -fx-border-radius: 3; -fx-padding: 5 10; -fx-background-color: white;");
         fileLabel.setMinWidth(300);
-        loadButton = new Button("Загрузить");
+        loadButton = new Button("📂 Загрузить");
         loadButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white;");
         loadButton.setOnAction(e -> loadWavFile());
         fileRow.getChildren().addAll(fileLabelText, fileLabel, loadButton);
@@ -99,13 +109,29 @@ public class MainWindow {
 
         modeGroup = new ToggleGroup();
         doubleBufferRadio = new RadioButton("Double Buffer");
-        ringBufferRadio = new RadioButton("RingBuffer");
+        ringBufferRadio = new RadioButton("RingBuffer (без фильтра)");
+        filteredRingBufferRadio = new RadioButton("RingBuffer + Фильтр");
 
         doubleBufferRadio.setToggleGroup(modeGroup);
         ringBufferRadio.setToggleGroup(modeGroup);
+        filteredRingBufferRadio.setToggleGroup(modeGroup);
         doubleBufferRadio.setSelected(true);
 
-        modeRow.getChildren().addAll(modeLabel, doubleBufferRadio, ringBufferRadio);
+        // Обработчик смены режима
+        filteredRingBufferRadio.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            filterEnabledCheck.setDisable(!newVal);
+            filterTypeCombo.setDisable(!newVal);
+            filterOrderCombo.setDisable(!newVal);
+            cutoffLowField.setDisable(!newVal);
+            cutoffHighField.setDisable(!(newVal && filterTypeCombo.getValue().equals("Полосовой")));
+        });
+
+        modeRow.getChildren().addAll(modeLabel, doubleBufferRadio, ringBufferRadio, filteredRingBufferRadio);
+
+        // Панель фильтров
+        TitledPane filterPane = createFilterPanel();
+        filterPane.setCollapsible(true);
+        filterPane.setExpanded(false);
 
         // Строка кнопок управления
         HBox buttonRow = new HBox(15);
@@ -124,9 +150,89 @@ public class MainWindow {
         buttonRow.getChildren().addAll(playButton, stopButton);
 
         // Добавляем все в главную панель
-        controlPanel.getChildren().addAll(titleLabel, fileRow, bufferRow, modeRow, buttonRow);
+        controlPanel.getChildren().addAll(titleLabel, fileRow, bufferRow, modeRow, filterPane, buttonRow);
 
         return controlPanel;
+    }
+
+    // Панель фильтров
+    private TitledPane createFilterPanel() {
+        VBox filterContent = new VBox(10);
+        filterContent.setPadding(new Insets(10));
+
+        // Включение фильтра
+        filterEnabledCheck = new CheckBox("Включить фильтр");
+        filterEnabledCheck.setSelected(true);
+        filterEnabledCheck.setDisable(true);
+
+        // Тип фильтра (ФНЧ/ФВЧ/Полосовой)
+        HBox typeRow = new HBox(10);
+        typeRow.setAlignment(Pos.CENTER_LEFT);
+        Label typeLabel = new Label("Тип фильтра:");
+        filterTypeCombo = new ComboBox<>(FXCollections.observableArrayList(
+                "ФНЧ (Low-pass) 0-317 Гц",
+                "ФВЧ (High-pass) 9827-19971 Гц",
+                "Полосовой (Band-pass) 2219-4755 Гц"
+        ));
+        filterTypeCombo.getSelectionModel().selectFirst();
+        filterTypeCombo.setDisable(true);
+        typeRow.getChildren().addAll(typeLabel, filterTypeCombo);
+
+        // Выбор: FIR или IIR
+        HBox algorithmRow = new HBox(10);
+        algorithmRow.setAlignment(Pos.CENTER_LEFT);
+        Label algorithmLabel = new Label("Тип фильтрации:");
+        ToggleGroup algGroup = new ToggleGroup();
+        RadioButton firRadio = new RadioButton("КИХ (Rectangular window)");
+        RadioButton iirRadio = new RadioButton("БИХ (Butterworth)");
+        firRadio.setToggleGroup(algGroup);
+        iirRadio.setToggleGroup(algGroup);
+        firRadio.setSelected(true);
+        firRadio.setDisable(true);
+        iirRadio.setDisable(true);
+        algorithmRow.getChildren().addAll(algorithmLabel, firRadio, iirRadio);
+
+        // Порядок фильтра
+        HBox orderRow = new HBox(10);
+        orderRow.setAlignment(Pos.CENTER_LEFT);
+        Label orderLabel = new Label("Порядок фильтра:");
+
+        // Для КИХ: порядки 10, 100, 200, 500, 750, 1000
+        // Для БИХ: порядки 2, 4, 6
+        filterOrderCombo = new ComboBox<>(FXCollections.observableArrayList(
+                "2 (IIR)",
+                "4 (IIR)",
+                "6 (IIR)",
+                "10 (FIR)",
+                "100 (FIR)",
+                "200 (FIR)",
+                "500 (FIR)",
+                "750 (FIR)",
+                "1000 (FIR)"
+        ));
+        filterOrderCombo.getSelectionModel().selectLast(); // 1000 по умолчанию
+        filterOrderCombo.setDisable(true);
+
+        // При выборе порядка автоматически выбираем FIR/IIR
+        filterOrderCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal.contains("IIR")) {
+                iirRadio.setSelected(true);
+            } else {
+                firRadio.setSelected(true);
+            }
+        });
+
+        orderRow.getChildren().addAll(orderLabel, filterOrderCombo);
+
+        // Информационная метка о частотах
+        Label infoLabel = new Label("📌 Частоты среза заданы в соответствии с заданием");
+        infoLabel.setStyle("-fx-text-fill: #7f8c8d; -fx-font-size: 11px;");
+
+        filterContent.getChildren().addAll(filterEnabledCheck, typeRow, algorithmRow, orderRow, infoLabel);
+
+        TitledPane pane = new TitledPane("Настройки фильтра", filterContent);
+        pane.setStyle("-fx-font-weight: bold;");
+        return pane;
     }
 
     private HBox createStatusBar() {
@@ -134,13 +240,16 @@ public class MainWindow {
         statusBar.setPadding(new Insets(8, 15, 8, 15));
         statusBar.setStyle("-fx-background-color: #34495e;");
 
-        statusLabel = new Label("Готов к работе");
+        statusLabel = new Label("✅ Готов к работе");
         statusLabel.setStyle("-fx-text-fill: white; -fx-font-size: 12px;");
+
+        filterStatusLabel = new Label("");
+        filterStatusLabel.setStyle("-fx-text-fill: #3498db; -fx-font-size: 11px;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        statusBar.getChildren().addAll(statusLabel, spacer);
+        statusBar.getChildren().addAll(statusLabel, spacer, filterStatusLabel);
 
         return statusBar;
     }
@@ -148,6 +257,7 @@ public class MainWindow {
     private void initPlayers() {
         doubleBufferPlayer = new DoubleBufferPlayer(BUFFER_SIZES[0]);
         ringBufferPlayer = new RingBufferPlayer(BUFFER_SIZES[0]);
+        filteredRingBufferPlayer = new FilteredRingBufferPlayer(BUFFER_SIZES[0]);
 
         System.out.println("[INIT] Плееры инициализированы");
     }
@@ -173,7 +283,7 @@ public class MainWindow {
 
                 fileLabel.setText(currentFile.getName());
                 playButton.setDisable(false);
-                statusLabel.setText("Файл загружен: " + currentFile.getName());
+                statusLabel.setText("📁 Файл загружен: " + currentFile.getName());
 
                 System.out.println("[LOAD] Файл успешно загружен");
                 System.out.println(String.format("  Формат: %.1f кГц, %d бит, %s",
@@ -185,7 +295,7 @@ public class MainWindow {
             } catch (Exception e) {
                 System.err.println("[ERROR] Ошибка загрузки WAV: " + e.getMessage());
                 showAlert("Ошибка", "Не удалось загрузить WAV файл:\n" + e.getMessage());
-                statusLabel.setText("Ошибка загрузки");
+                statusLabel.setText("❌ Ошибка загрузки");
                 e.printStackTrace();
             }
         }
@@ -205,16 +315,37 @@ public class MainWindow {
 
         try {
             if (doubleBufferRadio.isSelected()) {
-                System.out.println("[PLAY] DoubleBuffer воспроизведение, буфер=" + sizeName + " (" + bufferSize + " байт)");
+                System.out.println("[PLAY] DoubleBuffer, буфер=" + sizeName);
+                statusLabel.setText("🔄 DoubleBuffer... буфер=" + sizeName);
+                filterStatusLabel.setText("");
                 doubleBufferPlayer.setBufferSize(bufferSize);
-                statusLabel.setText("DoubleBuffer... буфер=" + sizeName);
                 doubleBufferPlayer.play(currentAudioData, currentFormat);
 
             } else if (ringBufferRadio.isSelected()) {
-                System.out.println("[PLAY] RingBuffer, буфер=" + sizeName + " (" + bufferSize + " байт)");
+                System.out.println("[PLAY] RingBuffer (без фильтра), буфер=" + sizeName);
+                statusLabel.setText("⭕ RingBuffer... буфер=" + sizeName);
+                filterStatusLabel.setText("");
                 ringBufferPlayer.setBufferSize(bufferSize);
-                statusLabel.setText("RingBuffer... буфер=" + sizeName);
                 ringBufferPlayer.play(currentAudioData, currentFormat);
+
+            } else if (filteredRingBufferRadio.isSelected()) {
+                System.out.println("[PLAY] RingBuffer + Фильтр, буфер=" + sizeName);
+
+                // Настройка фильтра
+                if (filterEnabledCheck.isSelected()) {
+                    setupFilter();
+                } else {
+                    filteredRingBufferPlayer.disableFilter();
+                    filterStatusLabel.setText("🔘 Фильтр выключен");
+                }
+
+                filteredRingBufferPlayer.setBufferSize(bufferSize);
+                filteredRingBufferPlayer.play(currentAudioData, currentFormat);
+
+                if (filterEnabledCheck.isSelected()) {
+                    filterStatusLabel.setText("🎛️ " + filteredRingBufferPlayer.getFilterName() +
+                            ", порядок=" + filteredRingBufferPlayer.getFilterOrder());
+                }
             }
 
             playButton.setDisable(true);
@@ -223,7 +354,6 @@ public class MainWindow {
 
             System.out.println("[PLAY] Воспроизведение запущено");
 
-            // Мониторинг окончания воспроизведения
             playbackMonitor = new Thread(() -> {
                 while (isPlaying && isPlaybackActive()) {
                     try {
@@ -245,9 +375,40 @@ public class MainWindow {
         } catch (LineUnavailableException e) {
             System.err.println("[ERROR] Ошибка воспроизведения: " + e.getMessage());
             showAlert("Ошибка", "Не удалось воспроизвести:\n" + e.getMessage());
-            statusLabel.setText("Ошибка воспроизведения");
+            statusLabel.setText("❌ Ошибка воспроизведения");
             playButton.setDisable(false);
         }
+    }
+
+    private void setupFilter() {
+        String filterType = filterTypeCombo.getValue();
+        String orderStr = filterOrderCombo.getValue();
+
+        // Парсим порядок
+        int order = Integer.parseInt(orderStr.replaceAll("[^0-9]", ""));
+
+        // Определяем, FIR или IIR
+        boolean useFIR = orderStr.contains("FIR");
+        int actualOrder = order;
+
+        // Для IIR порядок 2,4,6; для FIR 10-1000
+        if (!useFIR && actualOrder > 6) {
+            actualOrder = 6; // fallback
+        }
+
+        switch (filterType) {
+            case "ФНЧ (Low-pass) 0-317 Гц":
+                filteredRingBufferPlayer.setLowPassFilter(actualOrder, useFIR);
+                break;
+            case "ФВЧ (High-pass) 9827-19971 Гц":
+                filteredRingBufferPlayer.setHighPassFilter(actualOrder, useFIR);
+                break;
+            case "Полосовой (Band-pass) 2219-4755 Гц":
+                filteredRingBufferPlayer.setBandPassFilter(actualOrder, useFIR);
+                break;
+        }
+
+        filteredRingBufferPlayer.setFilterEnabled(true);
     }
 
     private boolean isPlaybackActive() {
@@ -260,6 +421,7 @@ public class MainWindow {
 
         doubleBufferPlayer.stop();
         ringBufferPlayer.stop();
+        filteredRingBufferPlayer.stop();
 
         if (playbackMonitor != null) {
             playbackMonitor.interrupt();
