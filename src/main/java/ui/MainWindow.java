@@ -19,7 +19,6 @@ public class MainWindow {
 
     // UI Components
     private ComboBox<String> bufferSizeCombo;
-    private RadioButton directPlayRadio;
     private RadioButton doubleBufferRadio;
     private RadioButton ringBufferRadio;
     private ToggleGroup modeGroup;
@@ -35,7 +34,6 @@ public class MainWindow {
     private javax.sound.sampled.AudioFormat currentFormat;
 
     // Players
-    private AudioPlayer directPlayer;
     private DoubleBufferPlayer doubleBufferPlayer;
     private RingBufferPlayer ringBufferPlayer;
 
@@ -76,7 +74,7 @@ public class MainWindow {
         fileLabel = new Label("Не выбран");
         fileLabel.setStyle("-fx-border-color: #999; -fx-border-radius: 3; -fx-padding: 5 10; -fx-background-color: white;");
         fileLabel.setMinWidth(300);
-        loadButton = new Button("📂 Загрузить");
+        loadButton = new Button("Загрузить");
         loadButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white;");
         loadButton.setOnAction(e -> loadWavFile());
         fileRow.getChildren().addAll(fileLabelText, fileLabel, loadButton);
@@ -100,16 +98,14 @@ public class MainWindow {
         modeLabel.setStyle("-fx-font-weight: bold;");
 
         modeGroup = new ToggleGroup();
-        directPlayRadio = new RadioButton("Прямое воспроизведение");
         doubleBufferRadio = new RadioButton("Double Buffer");
         ringBufferRadio = new RadioButton("RingBuffer");
 
-        directPlayRadio.setToggleGroup(modeGroup);
         doubleBufferRadio.setToggleGroup(modeGroup);
         ringBufferRadio.setToggleGroup(modeGroup);
-        directPlayRadio.setSelected(true);
+        doubleBufferRadio.setSelected(true);
 
-        modeRow.getChildren().addAll(modeLabel, directPlayRadio, doubleBufferRadio, ringBufferRadio);
+        modeRow.getChildren().addAll(modeLabel, doubleBufferRadio, ringBufferRadio);
 
         // Строка кнопок управления
         HBox buttonRow = new HBox(15);
@@ -138,7 +134,7 @@ public class MainWindow {
         statusBar.setPadding(new Insets(8, 15, 8, 15));
         statusBar.setStyle("-fx-background-color: #34495e;");
 
-        statusLabel = new Label("✅ Готов к работе");
+        statusLabel = new Label("Готов к работе");
         statusLabel.setStyle("-fx-text-fill: white; -fx-font-size: 12px;");
 
         Region spacer = new Region();
@@ -150,7 +146,6 @@ public class MainWindow {
     }
 
     private void initPlayers() {
-        directPlayer = new AudioPlayer();
         doubleBufferPlayer = new DoubleBufferPlayer(BUFFER_SIZES[0]);
         ringBufferPlayer = new RingBufferPlayer(BUFFER_SIZES[0]);
 
@@ -178,7 +173,7 @@ public class MainWindow {
 
                 fileLabel.setText(currentFile.getName());
                 playButton.setDisable(false);
-                statusLabel.setText("📁 Файл загружен: " + currentFile.getName());
+                statusLabel.setText("Файл загружен: " + currentFile.getName());
 
                 System.out.println("[LOAD] Файл успешно загружен");
                 System.out.println(String.format("  Формат: %.1f кГц, %d бит, %s",
@@ -190,7 +185,7 @@ public class MainWindow {
             } catch (Exception e) {
                 System.err.println("[ERROR] Ошибка загрузки WAV: " + e.getMessage());
                 showAlert("Ошибка", "Не удалось загрузить WAV файл:\n" + e.getMessage());
-                statusLabel.setText("❌ Ошибка загрузки");
+                statusLabel.setText("Ошибка загрузки");
                 e.printStackTrace();
             }
         }
@@ -209,21 +204,16 @@ public class MainWindow {
         stopPlayback();
 
         try {
-            if (directPlayRadio.isSelected()) {
-                System.out.println("[PLAY] Прямое воспроизведение, буфер=" + sizeName + " (" + bufferSize + " байт)");
-                statusLabel.setText("🎵 Прямое воспроизведение... буфер=" + sizeName);
-                directPlayer.play(currentAudioData, currentFormat);
-
-            } else if (doubleBufferRadio.isSelected()) {
+            if (doubleBufferRadio.isSelected()) {
                 System.out.println("[PLAY] DoubleBuffer воспроизведение, буфер=" + sizeName + " (" + bufferSize + " байт)");
                 doubleBufferPlayer.setBufferSize(bufferSize);
-                statusLabel.setText("🔄 DoubleBuffer... буфер=" + sizeName);
+                statusLabel.setText("DoubleBuffer... буфер=" + sizeName);
                 doubleBufferPlayer.play(currentAudioData, currentFormat);
 
             } else if (ringBufferRadio.isSelected()) {
-                System.out.println("[PLAY] RingBuffer воспроизведение, буфер=" + sizeName + " (" + bufferSize + " байт)");
+                System.out.println("[PLAY] RingBuffer, буфер=" + sizeName + " (" + bufferSize + " байт)");
                 ringBufferPlayer.setBufferSize(bufferSize);
-                statusLabel.setText("⭕ RingBuffer ... буфер=" + sizeName);
+                statusLabel.setText("RingBuffer... буфер=" + sizeName);
                 ringBufferPlayer.play(currentAudioData, currentFormat);
             }
 
@@ -255,15 +245,12 @@ public class MainWindow {
         } catch (LineUnavailableException e) {
             System.err.println("[ERROR] Ошибка воспроизведения: " + e.getMessage());
             showAlert("Ошибка", "Не удалось воспроизвести:\n" + e.getMessage());
-            statusLabel.setText("❌ Ошибка воспроизведения");
+            statusLabel.setText("Ошибка воспроизведения");
             playButton.setDisable(false);
         }
     }
 
     private boolean isPlaybackActive() {
-        if (directPlayRadio.isSelected()) {
-            return directPlayer.isPlaying();
-        }
         return isPlaying;
     }
 
@@ -271,7 +258,6 @@ public class MainWindow {
         System.out.println("[STOP] Остановка воспроизведения");
         isPlaying = false;
 
-        directPlayer.stop();
         doubleBufferPlayer.stop();
         ringBufferPlayer.stop();
 
