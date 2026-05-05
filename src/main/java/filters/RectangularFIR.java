@@ -8,70 +8,69 @@ public class RectangularFIR implements Filter {
     private int pos = 0;
     private final int numtaps;
 
-    // Конструктор для ФНЧ и ФВЧ (numtaps = 10, 100, 200, 500, 750, 1000)
     public RectangularFIR(int numtaps, double cutoff, String btype, double fs) {
         this.numtaps = numtaps;
-        double fc = cutoff / fs;  // normalized frequency (0 to 0.5)
-        this.coefficients = designFIR(numtaps, fc, btype);
+        this.coefficients = designFIR(numtaps, cutoff, btype, fs);
         this.history = new double[numtaps];
+
+        double sum = 0;
+        for (double c : coefficients) sum += c;
+        System.out.println("[FIR] " + btype + ", taps=" + numtaps + ", cutoff=" + cutoff + " Hz, sum=" + sum);
+
+        // Проверка: для ФВЧ центральный коэффициент должен быть около 1
+        int m = (numtaps - 1) / 2;
+        System.out.println("[FIR] Центральный коэффициент: " + coefficients[m]);
     }
 
-    // Конструктор для полосового фильтра
     public RectangularFIR(int numtaps, double[] cutoff, String btype, double fs) {
         this.numtaps = numtaps;
-        double f1 = cutoff[0] / fs;
-        double f2 = cutoff[1] / fs;
-        this.coefficients = designFIRBandpass(numtaps, f1, f2);
+        this.coefficients = designFIRBandpass(numtaps, cutoff, btype, fs);
         this.history = new double[numtaps];
     }
 
-    /**
-     * Проектирование КИХ для ФНЧ/ФВЧ
-     * Используется sinc-функция и прямоугольное окно
-     */
-    private double[] designFIR(int numtaps, double fc, String btype) {
+    private double[] designFIR(int numtaps, double cutoff, String btype, double fs) {
         double[] coeff = new double[numtaps];
         int m = (numtaps - 1) / 2;
 
-        // Идеальный ФНЧ (sinc)
-        for (int i = 0; i < numtaps; i++) {
-            int n = i - m;
-            if (n == 0) {
-                coeff[i] = 2.0 * fc;
-            } else {
-                coeff[i] = Math.sin(2.0 * Math.PI * fc * n) / (Math.PI * n);
-            }
-        }
-
-        // Преобразование в ФВЧ при необходимости
-        if (btype.equals("highpass")) {
+        if (btype.equals("lowpass")) {
+            // ФНЧ
+            double fc = cutoff / fs;
             for (int i = 0; i < numtaps; i++) {
-                if (i == m) {
-                    coeff[i] = 1.0 - coeff[i];
+                int n = i - m;
+                if (n == 0) {
+                    coeff[i] = 2.0 * fc;
                 } else {
-                    coeff[i] = -coeff[i];
+                    coeff[i] = Math.sin(2.0 * Math.PI * fc * n) / (Math.PI * n);
                 }
             }
         }
+        else if (btype.equals("highpass")) {
+            // Используем формулу: h_hp[n] = h_lp[n] * (-1)^n, но с fc_lp = 0.5 - fc
+            double fc = cutoff / fs;
+            double fc_lp = 0.5 - fc;  // Частота для ФНЧ прототипа
 
-        // Нормализация для единичного усиления
-        double sum = 0;
-        for (double c : coeff) sum += c;
-        if (Math.abs(sum) > 1e-10) {
-            for (int i = 0; i < numtaps; i++) coeff[i] /= sum;
+            for (int i = 0; i < numtaps; i++) {
+                int n = i - m;
+                if (n == 0) {
+                    coeff[i] = 2.0 * fc_lp;
+                } else {
+                    coeff[i] = Math.sin(2.0 * Math.PI * fc_lp * n) / (Math.PI * n);
+                }
+                // Применяем модуляцию (-1)^n для преобразования в ФВЧ
+                coeff[i] = coeff[i] * ((n % 2 == 0) ? 1 : -1);
+            }
         }
 
+        // Применяем прямоугольное окно (уже применено, sinc уже окна)
         return coeff;
     }
 
-    /**
-     * Проектирование полосового КИХ
-     */
-    private double[] designFIRBandpass(int numtaps, double f1, double f2) {
+    private double[] designFIRBandpass(int numtaps, double[] cutoff, String btype, double fs) {
         double[] coeff = new double[numtaps];
         int m = (numtaps - 1) / 2;
+        double f1 = cutoff[0] / fs;
+        double f2 = cutoff[1] / fs;
 
-        // Идеальный полосовой фильтр
         for (int i = 0; i < numtaps; i++) {
             int n = i - m;
             if (n == 0) {
@@ -79,13 +78,6 @@ public class RectangularFIR implements Filter {
             } else {
                 coeff[i] = (Math.sin(2.0 * Math.PI * f2 * n) - Math.sin(2.0 * Math.PI * f1 * n)) / (Math.PI * n);
             }
-        }
-
-        // Нормализация
-        double sum = 0;
-        for (double c : coeff) sum += c;
-        if (Math.abs(sum) > 1e-10) {
-            for (int i = 0; i < numtaps; i++) coeff[i] /= sum;
         }
 
         return coeff;
