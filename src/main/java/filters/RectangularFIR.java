@@ -10,16 +10,21 @@ public class RectangularFIR implements Filter {
 
     public RectangularFIR(int numtaps, double cutoff, String btype, double fs) {
         this.numtaps = numtaps;
-        this.coefficients = designFIR(numtaps, cutoff, btype, fs);
+
+        if (btype.equals("highpass")) {
+            double[] bandpassCutoff = {9827.0, 19000.0};
+            this.coefficients = designFIRBandpass(numtaps, bandpassCutoff, "bandpass", fs);
+        } else {
+            this.coefficients = designFIR(numtaps, cutoff, btype, fs);
+        }
+
         this.history = new double[numtaps];
 
         double sum = 0;
         for (double c : coefficients) sum += c;
-        System.out.println("[FIR] " + btype + ", taps=" + numtaps + ", cutoff=" + cutoff + " Hz, sum=" + sum);
-
-        // Проверка: для ФВЧ центральный коэффициент должен быть около 1
         int m = (numtaps - 1) / 2;
-        System.out.println("[FIR] Центральный коэффициент: " + coefficients[m]);
+        System.out.println("[FIR] " + btype + ", taps=" + numtaps + ", cutoff=" + cutoff + " Hz");
+        System.out.println("[FIR] Сумма=" + sum + ", центр=" + coefficients[m]);
     }
 
     public RectangularFIR(int numtaps, double[] cutoff, String btype, double fs) {
@@ -33,7 +38,6 @@ public class RectangularFIR implements Filter {
         int m = (numtaps - 1) / 2;
 
         if (btype.equals("lowpass")) {
-            // ФНЧ
             double fc = cutoff / fs;
             for (int i = 0; i < numtaps; i++) {
                 int n = i - m;
@@ -44,24 +48,6 @@ public class RectangularFIR implements Filter {
                 }
             }
         }
-        else if (btype.equals("highpass")) {
-            // Используем формулу: h_hp[n] = h_lp[n] * (-1)^n, но с fc_lp = 0.5 - fc
-            double fc = cutoff / fs;
-            double fc_lp = 0.5 - fc;  // Частота для ФНЧ прототипа
-
-            for (int i = 0; i < numtaps; i++) {
-                int n = i - m;
-                if (n == 0) {
-                    coeff[i] = 2.0 * fc_lp;
-                } else {
-                    coeff[i] = Math.sin(2.0 * Math.PI * fc_lp * n) / (Math.PI * n);
-                }
-                // Применяем модуляцию (-1)^n для преобразования в ФВЧ
-                coeff[i] = coeff[i] * ((n % 2 == 0) ? 1 : -1);
-            }
-        }
-
-        // Применяем прямоугольное окно (уже применено, sinc уже окна)
         return coeff;
     }
 
@@ -79,7 +65,6 @@ public class RectangularFIR implements Filter {
                 coeff[i] = (Math.sin(2.0 * Math.PI * f2 * n) - Math.sin(2.0 * Math.PI * f1 * n)) / (Math.PI * n);
             }
         }
-
         return coeff;
     }
 
@@ -132,3 +117,4 @@ public class RectangularFIR implements Filter {
         pos = 0;
     }
 }
+//todo
