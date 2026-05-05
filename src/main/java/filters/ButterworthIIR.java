@@ -11,32 +11,30 @@ public class ButterworthIIR implements Filter {
 
     // Конструктор для ФНЧ и ФВЧ
     public ButterworthIIR(int order, double cutoff, String btype, double fs, double rp) {
-        double Wc = 2 * Math.PI * cutoff / fs;
-
         double[] tempB = null;
         double[] tempA = null;
 
         if (btype.equals("lowpass")) {
             if (order == 2) {
-                tempB = new double[]{0.0000515, 0.0001030, 0.0000515};
-                tempA = new double[]{1.0, -1.9745, 0.9757};
+                tempB = new double[]{0.0004941046199407910, 0.0009882092398815819, 0.0004941046199407910};
+                tempA = new double[]{1.0, -1.9361479664887258, 0.9381243849684888};
             } else if (order == 4) {
-                tempB = new double[]{0.0000022, 0.0000088, 0.0000132, 0.0000088, 0.0000022};
-                tempA = new double[]{1.0, -3.8975, 5.6998, -3.7089, 0.9066};
+                tempB = new double[]{0.000000245327897303946, 0.000000981311589215784, 0.00000147196738382368, 0.000000981311589215784, 0.000000245327897303946};
+                tempA = new double[]{1.0, -3.881983431648751, 5.652864415059423, -3.659543618275146, 0.8886665601108299};
             } else if (order == 6) {
-                tempB = new double[]{0.0000000089, 0.0000000534, 0.0000001335, 0.0000001780, 0.0000001335, 0.0000000534, 0.0000000089};
-                tempA = new double[]{1.0, -5.4758, 12.7649, -15.9679, 11.2316, -4.2017, 0.6540};
+                tempB = new double[]{0.000000000121665998172276, 0.000000000729995989033658, 0.000000001824989972584144, 0.000000002433319963445526, 0.000000001824989972584144, 0.000000000729995989033658, 0.000000000121665998172276};
+                tempA = new double[]{1.0, -5.825499339969697, 14.142656809604885, -18.314802954671496, 13.343491582793842, -5.185704150776340, 0.8398580608057002};
             }
         } else if (btype.equals("highpass")) {
             if (order == 2) {
-                tempB = new double[]{0.9759, -1.9518, 0.9759};
-                tempA = new double[]{1.0, -1.9745, 0.9757};
+                tempB = new double[]{0.3447185364832088, -0.6894370729664177, 0.3447185364832088};
+                tempA = new double[]{1.0, -0.20020668289546587, 0.1786674630373693};
             } else if (order == 4) {
-                tempB = new double[]{0.9066, -3.6264, 5.4396, -3.6264, 0.9066};
-                tempA = new double[]{1.0, -3.8975, 5.6998, -3.7089, 0.9066};
+                tempB = new double[]{0.1300461497473157, -0.5201845989892628, 0.7802768984838944, -0.5201845989892628, 0.1300461497473157};
+                tempA = new double[]{1.0, -0.4245061376318614, 0.5430409074606785, -0.09199119730110188, 0.02120015307802048};
             } else if (order == 6) {
-                tempB = new double[]{0.6540, -3.9240, 9.8100, -13.0800, 9.8100, -3.9240, 0.6540};
-                tempA = new double[]{1.0, -5.4758, 12.7649, -15.9679, 11.2316, -4.2017, 0.6540};
+                tempB = new double[]{0.04814512295067053, -0.2888707377040232, 0.7221768442600580, -0.9629042590134106, 0.7221768442600580, -0.2888707377040232, 0.04814512295067053};
+                tempA = new double[]{1.0, -0.6449302052205168, 0.9330143904576556, -0.32263377703643403, 0.15551733602207018, -0.02257825791088032, 0.0026139021953571705};
             }
         }
 
@@ -49,26 +47,26 @@ public class ButterworthIIR implements Filter {
         this.a = tempA;
         this.xHistory = new double[b.length];
         this.yHistory = new double[b.length];
+
+        System.out.println("[IIR] " + btype + ", order=" + order + ", cutoff=" + cutoff + " Hz");
+        System.out.println("[IIR] b length=" + b.length + ", a length=" + a.length);
     }
 
-    // Конструктор для полосового фильтра (order 2, 4, 6)
+    // Конструктор для полосового фильтра
     public ButterworthIIR(int order, double[] cutoff, String btype, double fs, double rp) {
         double[] tempB = null;
         double[] tempA = null;
 
         if (btype.equals("bandpass")) {
             if (order == 2) {
-                // Полосовой 2-го порядка (прототип 1-го порядка)
-                tempB = new double[]{0.00023, 0, -0.00046, 0, 0.00023};
-                tempA = new double[]{1.0, -3.8637, 5.7033, -3.8230, 0.9826};
+                tempB = new double[]{0.1544418920664769, 0, -0.1544418920664769};
+                tempA = new double[]{1.0, -1.5112654082467516, 0.6911162158670462};
             } else if (order == 4) {
-                // Полосовой 4-го порядка (прототип 2-го порядка)
-                tempB = new double[]{0.0000021, 0, -0.0000084, 0, 0.0000126, 0, -0.0000084, 0, 0.0000021};
-                tempA = new double[]{1.0, -7.3287, 24.2322, -46.8243, 57.9599, -47.2071, 25.0732, -8.0207, 1.2146};
+                tempB = new double[]{0.0258280848680252, 0, -0.0516561697360504, 0, 0.0258280848680252};
+                tempA = new double[]{1.0, -3.1248502739371475, 3.9698387549845995, -2.4100037222751975, 0.600040936298999};
             } else if (order == 6) {
-                // Полосовой 6-го порядка (прототип 3-го порядка)
-                tempB = new double[]{0.00000091, 0, -0.00000546, 0, 0.00001365, 0, -0.00001820, 0, 0.00001365, 0, -0.00000546, 0, 0.00000091};
-                tempA = new double[]{1.0, -9.5835, 44.0754, -125.9823, 249.4666, -359.9698, 388.3266, -316.1203, 193.4572, -87.4751, 28.1631, -5.9737, 0.6521};
+                tempB = new double[]{0.0042371174900582495, 0, -0.012711352470174749, 0, 0.012711352470174749, 0, -0.0042371174900582495};
+                tempA = new double[]{1.0, -4.71933389732127, 9.75618878692679, -11.261043630476365, 7.650721421751836, -2.9033396575545294, 0.4834983050462119};
             }
         }
 
@@ -81,6 +79,9 @@ public class ButterworthIIR implements Filter {
         this.a = tempA;
         this.xHistory = new double[b.length];
         this.yHistory = new double[b.length];
+
+        System.out.println("[IIR] bandpass, order=" + order + ", cutoff=" + cutoff[0] + "-" + cutoff[1] + " Hz");
+        System.out.println("[IIR] b length=" + b.length + ", a length=" + a.length);
     }
 
     @Override
@@ -107,9 +108,9 @@ public class ButterworthIIR implements Filter {
 
         for (int i = 0; i < sampleCount; i++) {
             int idx = i * 2;
-            samples[i] = ((input[idx + 1] & 0xFF) << 8) | (input[idx] & 0xFF);
-            if (samples[i] > 32767) samples[i] -= 65536;
-            samples[i] = samples[i] / 32768.0;
+            int sample = ((input[idx + 1] & 0xFF) << 8) | (input[idx] & 0xFF);
+            if (sample > 32767) sample -= 65536;
+            samples[i] = sample / 32768.0;
         }
 
         double[] filtered = new double[sampleCount];
