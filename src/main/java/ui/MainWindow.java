@@ -1,5 +1,6 @@
 package ui;
 
+import equalizer.EqualizerPlayer;
 import player.*;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -22,6 +23,7 @@ public class MainWindow {
     private RadioButton doubleBufferRadio;
     private RadioButton ringBufferRadio;
     private RadioButton filteredRingBufferRadio;
+    private RadioButton equalizerRadio;
     private ToggleGroup modeGroup;
     private Button loadButton;
     private Button playButton;
@@ -37,6 +39,13 @@ public class MainWindow {
     private RadioButton firRadio;
     private RadioButton iirRadio;
 
+    // Equalizer controls
+    private Slider[] bandSliders;
+    private Label[] bandValueLabels;
+    private RadioButton eqIIRRadio;
+    private RadioButton eqFIRRadio;
+    private TitledPane equalizerPane;
+
     // Data
     private File currentFile;
     private byte[] currentAudioData;
@@ -46,6 +55,7 @@ public class MainWindow {
     private DoubleBufferPlayer doubleBufferPlayer;
     private RingBufferPlayer ringBufferPlayer;
     private FilteredRingBufferPlayer filteredRingBufferPlayer;
+    private EqualizerPlayer equalizerPlayer;
 
     private volatile boolean isPlaying = false;
     private Thread playbackMonitor;
@@ -55,7 +65,7 @@ public class MainWindow {
         root.setCenter(createControlPanel());
         root.setBottom(createStatusBar());
         initPlayers();
-        return new Scene(root, 950, 550);
+        return new Scene(root, 1200, 700);
     }
 
     private VBox createControlPanel() {
@@ -65,7 +75,7 @@ public class MainWindow {
         controlPanel.setStyle("-fx-background-color: #f5f5f5;");
 
         // Заголовок
-        Label titleLabel = new Label("Audio Buffer Tester");
+        Label titleLabel = new Label("Equalizer");
         titleLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
 
         // Строка выбора файла
@@ -103,13 +113,15 @@ public class MainWindow {
         doubleBufferRadio = new RadioButton("Double Buffer");
         ringBufferRadio = new RadioButton("RingBuffer (без фильтра)");
         filteredRingBufferRadio = new RadioButton("RingBuffer + Фильтр");
+        equalizerRadio = new RadioButton("Эквалайзер (6 полос)");
 
         doubleBufferRadio.setToggleGroup(modeGroup);
         ringBufferRadio.setToggleGroup(modeGroup);
         filteredRingBufferRadio.setToggleGroup(modeGroup);
+        equalizerRadio.setToggleGroup(modeGroup);
         doubleBufferRadio.setSelected(true);
 
-        // ✅ ОБРАБОТЧИК - разблокирует панель фильтров при выборе
+        // Обработчик смены режима для фильтров
         filteredRingBufferRadio.selectedProperty().addListener((obs, oldVal, newVal) -> {
             boolean filterModeSelected = newVal;
             filterEnabledCheck.setDisable(!filterModeSelected);
@@ -117,12 +129,29 @@ public class MainWindow {
             filterOrderCombo.setDisable(!filterModeSelected);
         });
 
-        modeRow.getChildren().addAll(modeLabel, doubleBufferRadio, ringBufferRadio, filteredRingBufferRadio);
+        // Обработчик смены режима для эквалайзера
+        equalizerRadio.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            boolean eqModeSelected = newVal;
+            equalizerPane.setDisable(!eqModeSelected);
+            eqIIRRadio.setDisable(!eqModeSelected);
+            eqFIRRadio.setDisable(!eqModeSelected);
+            for (Slider s : bandSliders) {
+                if (s != null) s.setDisable(!eqModeSelected);
+            }
+        });
+
+        modeRow.getChildren().addAll(modeLabel, doubleBufferRadio, ringBufferRadio, filteredRingBufferRadio, equalizerRadio);
 
         // Панель фильтров
         TitledPane filterPane = createFilterPanel();
         filterPane.setCollapsible(true);
         filterPane.setExpanded(false);
+
+        // Панель эквалайзера
+        equalizerPane = createEqualizerPanel();
+        equalizerPane.setCollapsible(true);
+        equalizerPane.setExpanded(false);
+        equalizerPane.setDisable(true);
 
         // Строка кнопок управления
         HBox buttonRow = new HBox(15);
@@ -140,7 +169,7 @@ public class MainWindow {
 
         buttonRow.getChildren().addAll(playButton, stopButton);
 
-        controlPanel.getChildren().addAll(titleLabel, fileRow, bufferRow, modeRow, filterPane, buttonRow);
+        controlPanel.getChildren().addAll(titleLabel, fileRow, bufferRow, modeRow, filterPane, equalizerPane, buttonRow);
 
         return controlPanel;
     }
@@ -152,7 +181,6 @@ public class MainWindow {
         // Включение фильтра
         filterEnabledCheck = new CheckBox("Включить фильтр");
         filterEnabledCheck.setSelected(true);
-        // НЕ ДИСЕЙБЛИМ ЗДЕСЬ - обработчик в createControlPanel() будет управлять
 
         // Тип фильтра
         HBox typeRow = new HBox(10);
@@ -164,7 +192,6 @@ public class MainWindow {
                 "Полосовой (Band-pass) - полоса 2219-4755 Гц"
         ));
         filterTypeCombo.getSelectionModel().selectFirst();
-        // НЕ ДИСЕЙБЛИМ ЗДЕСЬ
         typeRow.getChildren().addAll(typeLabel, filterTypeCombo);
 
         // Выбор FIR/IIR
@@ -177,7 +204,6 @@ public class MainWindow {
         firRadio.setToggleGroup(algGroup);
         iirRadio.setToggleGroup(algGroup);
         firRadio.setSelected(true);
-        // ДЕЛАЕМ ТОЛЬКО ДЛЯ ЧТЕНИЯ - нельзя кликать
         firRadio.setDisable(true);
         iirRadio.setDisable(true);
         algorithmRow.getChildren().addAll(algorithmLabel, firRadio, iirRadio);
@@ -191,7 +217,6 @@ public class MainWindow {
                 "10 (FIR)", "100 (FIR)", "200 (FIR)", "500 (FIR)", "750 (FIR)", "1000 (FIR)"
         ));
         filterOrderCombo.getSelectionModel().select(8);
-        // НЕ ДИСЕЙБЛИМ ЗДЕСЬ
 
         // Автовыбор FIR/IIR при смене порядка
         filterOrderCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -210,6 +235,104 @@ public class MainWindow {
         filterContent.getChildren().addAll(filterEnabledCheck, typeRow, algorithmRow, orderRow, infoLabel);
 
         TitledPane pane = new TitledPane("Настройки фильтра", filterContent);
+        pane.setStyle("-fx-font-weight: bold;");
+        return pane;
+    }
+
+    private TitledPane createEqualizerPanel() {
+        VBox eqContent = new VBox(10);
+        eqContent.setPadding(new Insets(10));
+
+        // Выбор типа фильтрации для эквалайзера
+        HBox typeRow = new HBox(10);
+        typeRow.setAlignment(Pos.CENTER_LEFT);
+        Label typeLabel = new Label("Тип фильтрации эквалайзера:");
+        ToggleGroup eqTypeGroup = new ToggleGroup();
+        eqIIRRadio = new RadioButton("БИХ (Butterworth)");
+        eqFIRRadio = new RadioButton("КИХ (Rectangular)");
+        eqIIRRadio.setToggleGroup(eqTypeGroup);
+        eqFIRRadio.setToggleGroup(eqTypeGroup);
+        eqIIRRadio.setSelected(true);
+        eqIIRRadio.setDisable(true);
+        eqFIRRadio.setDisable(true);
+
+        // Слушатель смены типа фильтрации
+        eqIIRRadio.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal && equalizerPlayer != null && equalizerPlayer.getEqualizer() != null) {
+                equalizerPlayer.getEqualizer().setFilterType("IIR");
+            }
+        });
+        eqFIRRadio.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal && equalizerPlayer != null && equalizerPlayer.getEqualizer() != null) {
+                equalizerPlayer.getEqualizer().setFilterType("FIR");
+            }
+        });
+
+        typeRow.getChildren().addAll(typeLabel, eqIIRRadio, eqFIRRadio);
+
+        // Панель с 6 полосами
+        GridPane bandsPane = new GridPane();
+        bandsPane.setHgap(15);
+        bandsPane.setVgap(10);
+        bandsPane.setAlignment(Pos.CENTER);
+        bandsPane.setPadding(new Insets(10));
+
+        String[] bandNames = {
+                "Полоса 1\n0-317 Гц",
+                "Полоса 2\n317-951 Гц",
+                "Полоса 3\n951-2219 Гц",
+                "Полоса 4\n2219-4755 Гц",
+                "Полоса 5\n4755-9827 Гц",
+                "Полоса 6\n9827-19971 Гц"
+        };
+
+        double[] defaultGains = {0, 0, 0, 0, 0, 0};
+
+        bandSliders = new Slider[6];
+        bandValueLabels = new Label[6];
+
+        for (int i = 0; i < 6; i++) {
+            VBox bandBox = new VBox(5);
+            bandBox.setAlignment(Pos.CENTER);
+            bandBox.setStyle("-fx-border-color: #ccc; -fx-border-radius: 5; -fx-padding: 10; -fx-background-color: #fafafa;");
+
+            Label nameLabel = new Label(bandNames[i]);
+            nameLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 11px;");
+            nameLabel.setWrapText(true);
+            nameLabel.setAlignment(Pos.CENTER);
+
+            Slider slider = new Slider(-100, 0, defaultGains[i]);
+            slider.setOrientation(javafx.geometry.Orientation.VERTICAL);
+            slider.setPrefHeight(180);
+            slider.setShowTickLabels(true);
+            slider.setShowTickMarks(true);
+            slider.setMajorTickUnit(20);
+            slider.setBlockIncrement(5);
+            slider.setSnapToTicks(false);
+            slider.setDisable(true);
+
+            Label valueLabel = new Label(String.format("%.1f dB", defaultGains[i]));
+            valueLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold;");
+
+            final int bandNum = i + 1;
+            slider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                double db = newVal.doubleValue();
+                valueLabel.setText(String.format("%.1f dB", db));
+                if (equalizerPlayer != null && equalizerPlayer.getEqualizer() != null && isPlaying && equalizerRadio.isSelected()) {
+                    equalizerPlayer.getEqualizer().setGain(bandNum, db);
+                }
+            });
+
+            bandSliders[i] = slider;
+            bandValueLabels[i] = valueLabel;
+
+            bandBox.getChildren().addAll(nameLabel, slider, valueLabel);
+            bandsPane.add(bandBox, i, 0);
+        }
+
+        eqContent.getChildren().addAll(typeRow, bandsPane);
+
+        TitledPane pane = new TitledPane("Эквалайзер (6 полос - управление в реальном времени)", eqContent);
         pane.setStyle("-fx-font-weight: bold;");
         return pane;
     }
@@ -236,7 +359,8 @@ public class MainWindow {
         doubleBufferPlayer = new DoubleBufferPlayer(BUFFER_SIZES[0]);
         ringBufferPlayer = new RingBufferPlayer(BUFFER_SIZES[0]);
         filteredRingBufferPlayer = new FilteredRingBufferPlayer(BUFFER_SIZES[0]);
-        System.out.println("[INIT] Плееры инициализированы");
+        equalizerPlayer = new EqualizerPlayer(BUFFER_SIZES[0]);
+        System.out.println("[INIT] Плееры инициализированы (DoubleBuffer, RingBuffer, Filtered, Equalizer)");
     }
 
     private void loadWavFile() {
@@ -320,6 +444,27 @@ public class MainWindow {
                     String firIir = orderStr.contains("IIR") ? "IIR" : "FIR";
                     filterStatusLabel.setText("🎛️ " + filterType + ", " + firIir + " порядок=" + orderStr.replaceAll("[^0-9]", ""));
                 }
+
+            } else if (equalizerRadio.isSelected()) {
+                System.out.println("[PLAY] Equalizer (6 полос), буфер=" + sizeName);
+                statusLabel.setText("🎚️ Эквалайзер... буфер=" + sizeName);
+
+                // Устанавливаем тип фильтрации
+                if (eqIIRRadio.isSelected()) {
+                    equalizerPlayer.getEqualizer().setFilterType("IIR");
+                } else {
+                    equalizerPlayer.getEqualizer().setFilterType("FIR");
+                }
+
+                // Устанавливаем текущие значения ползунков
+                for (int i = 0; i < 6; i++) {
+                    double gain = bandSliders[i].getValue();
+                    equalizerPlayer.getEqualizer().setGain(i + 1, gain);
+                }
+
+                equalizerPlayer.setBufferSize(bufferSize);
+                equalizerPlayer.play(currentAudioData, currentFormat);
+                filterStatusLabel.setText("🎚️ Эквалайзер активен - двигайте ползунки!");
             }
 
             playButton.setDisable(true);
@@ -376,6 +521,7 @@ public class MainWindow {
         if (doubleBufferPlayer != null) doubleBufferPlayer.stop();
         if (ringBufferPlayer != null) ringBufferPlayer.stop();
         if (filteredRingBufferPlayer != null) filteredRingBufferPlayer.stop();
+        if (equalizerPlayer != null) equalizerPlayer.stop();
 
         if (playbackMonitor != null) playbackMonitor.interrupt();
 

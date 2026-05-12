@@ -84,6 +84,14 @@ public class ButterworthIIR implements Filter {
         System.out.println("[IIR] b length=" + b.length + ", a length=" + a.length);
     }
 
+    public ButterworthIIR(double[] b, double[] a) {
+        this.b = b.clone();
+        this.a = a.clone();
+        this.xHistory = new double[b.length];
+        this.yHistory = new double[b.length];
+        System.out.println("[IIR] Создан фильтр с готовыми коэффициентами, порядок=" + (b.length-1));
+    }
+
     @Override
     public double filter(double input) {
         int m = b.length;
