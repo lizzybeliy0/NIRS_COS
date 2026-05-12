@@ -42,6 +42,7 @@ public class MainWindow {
     // Equalizer controls
     private Slider[] bandSliders;
     private Label[] bandValueLabels;
+    private RadioButton normalRadio;
     private RadioButton eqIIRRadio;
     private RadioButton eqFIRRadio;
     private TitledPane equalizerPane;
@@ -52,6 +53,7 @@ public class MainWindow {
     private javax.sound.sampled.AudioFormat currentFormat;
 
     // Players
+    private AudioPlayer normalPlayer;
     private DoubleBufferPlayer doubleBufferPlayer;
     private RingBufferPlayer ringBufferPlayer;
     private FilteredRingBufferPlayer filteredRingBufferPlayer;
@@ -110,11 +112,13 @@ public class MainWindow {
         modeLabel.setStyle("-fx-font-weight: bold;");
 
         modeGroup = new ToggleGroup();
+        normalRadio = new RadioButton("Обычный (без буфера)");
         doubleBufferRadio = new RadioButton("Double Buffer");
         ringBufferRadio = new RadioButton("RingBuffer (без фильтра)");
         filteredRingBufferRadio = new RadioButton("RingBuffer + Фильтр");
         equalizerRadio = new RadioButton("Эквалайзер (6 полос)");
 
+        normalRadio.setToggleGroup(modeGroup);
         doubleBufferRadio.setToggleGroup(modeGroup);
         ringBufferRadio.setToggleGroup(modeGroup);
         filteredRingBufferRadio.setToggleGroup(modeGroup);
@@ -140,7 +144,7 @@ public class MainWindow {
             }
         });
 
-        modeRow.getChildren().addAll(modeLabel, doubleBufferRadio, ringBufferRadio, filteredRingBufferRadio, equalizerRadio);
+        modeRow.getChildren().addAll(modeLabel, normalRadio, doubleBufferRadio, ringBufferRadio, filteredRingBufferRadio, equalizerRadio);
 
         // Панель фильтров
         TitledPane filterPane = createFilterPanel();
@@ -356,6 +360,7 @@ public class MainWindow {
     }
 
     private void initPlayers() {
+        normalPlayer = new AudioPlayer();
         doubleBufferPlayer = new DoubleBufferPlayer(BUFFER_SIZES[0]);
         ringBufferPlayer = new RingBufferPlayer(BUFFER_SIZES[0]);
         filteredRingBufferPlayer = new FilteredRingBufferPlayer(BUFFER_SIZES[0]);
@@ -411,7 +416,13 @@ public class MainWindow {
         stopPlayback();
 
         try {
-            if (doubleBufferRadio.isSelected()) {
+            if (normalRadio.isSelected()) {
+                System.out.println("[PLAY] Normal (без буфера)");
+                statusLabel.setText("🔊 Обычное воспроизведение...");
+                filterStatusLabel.setText("");
+                normalPlayer.play(currentAudioData, currentFormat);
+
+            } else if (doubleBufferRadio.isSelected()) {
                 System.out.println("[PLAY] DoubleBuffer, буфер=" + sizeName);
                 statusLabel.setText("🔄 DoubleBuffer... буфер=" + sizeName);
                 filterStatusLabel.setText("");
@@ -518,6 +529,7 @@ public class MainWindow {
         System.out.println("[STOP] Остановка воспроизведения");
         isPlaying = false;
 
+        if (normalPlayer != null) normalPlayer.stop();
         if (doubleBufferPlayer != null) doubleBufferPlayer.stop();
         if (ringBufferPlayer != null) ringBufferPlayer.stop();
         if (filteredRingBufferPlayer != null) filteredRingBufferPlayer.stop();
