@@ -191,7 +191,7 @@ public class MainWindow {
         typeRow.setAlignment(Pos.CENTER_LEFT);
         Label typeLabel = new Label("Тип фильтра:");
         filterTypeCombo = new ComboBox<>(FXCollections.observableArrayList(
-                "ФНЧ (Low-pass) - срез 317 Гц",
+                "ФНЧ (Low-pass) - срез 100 Гц",
                 "ФВЧ (High-pass) - срез 9827 Гц",
                 "Полосовой (Band-pass) - полоса 2219-4755 Гц"
         ));
@@ -282,8 +282,8 @@ public class MainWindow {
         bandsPane.setPadding(new Insets(10));
 
         String[] bandNames = {
-                "Полоса 1\n0-317 Гц",
-                "Полоса 2\n317-951 Гц",
+                "Полоса 1\n0-100 Гц",
+                "Полоса 2\n100-951 Гц",
                 "Полоса 3\n951-2219 Гц",
                 "Полоса 4\n2219-4755 Гц",
                 "Полоса 5\n4755-9827 Гц",

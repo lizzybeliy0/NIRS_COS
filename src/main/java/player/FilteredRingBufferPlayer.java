@@ -15,7 +15,7 @@ public class FilteredRingBufferPlayer extends RingBufferPlayer {
     private int filterOrder = 0;
     private String filterType = "FIR";
 
-    private static final double LOWPASS_CUTOFF = 317.0;
+    private static final double LOWPASS_CUTOFF = 100.0;
     private static final double[] BANDPASS_CUTOFF = {2219.0, 4755.0};
     private static final double HIGHPASS_CUTOFF = 9827.0;
 
